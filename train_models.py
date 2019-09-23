@@ -3,13 +3,7 @@
 
 import sys
 sys.path.append("..")
-
-
 from utils import *
-
-
-
-
 import numpy as np
 import pandas as pd
 import pickle
@@ -43,23 +37,9 @@ sample_size = 200000
 dialogue_df = pd.read_csv('data/dialogues.tsv', sep='\t').sample(sample_size, random_state=0)
 stackoverflow_df = pd.read_csv('data/tagged_posts.tsv', sep='\t').sample(sample_size, random_state=0)
 
-
-
-
-
 dialogue_df.head()
-
-
-
 stackoverflow_df.head()
-
-
-
-
 from utils import text_prepare
-
-
-
 dialogue_df['text'] = [text_prepare(t) for t in dialogue_df['text']] 
 stackoverflow_df['title'] = [text_prepare(t) for t in stackoverflow_df['title']]
 from sklearn.model_selection import train_test_split
@@ -77,8 +57,6 @@ X_train_tfidf, X_test_tfidf = tfidf_features(X_train,X_test,'tfidf_vectorizer.pk
 # Train the **intent recognizer** using LogisticRegression on the train set with the following parameters: *penalty='l2'*, *C=10*, *random_state=0*. Print out the accuracy on the test set to check whether everything looks good.
 
 
-
-
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
@@ -87,15 +65,9 @@ from sklearn.metrics import accuracy_score
 
 intent_recognizer=LogisticRegression(penalty='l2',C=10,random_state=0)
 intent_recognizer.fit(X_train_tfidf,y_train)
-
-
-
 y_test_pred = intent_recognizer.predict(X_test_tfidf)
 test_accuracy = accuracy_score(y_test, y_test_pred)
 print('Tes accuracy = {}'.format(test_accuracy))
-
-
-
 pickle.dump(intent_recognizer, open(RESOURCE_PATH['INTENT_RECOGNIZER'], 'wb'))
 
 
@@ -143,48 +115,27 @@ pickle.dump(tag_classifier, open(RESOURCE_PATH['TAG_CLASSIFIER'], 'wb'))
 
 # To find a relevant answer (a thread from StackOverflow) on a question you will use vector representations to calculate similarity between the question and existing threads. We already had `question_to_vec` function from the assignment 3, which can create such a representation based on word vectors. 
 # 
-# However, it would be costly to compute such a representation for all possible answers in *online mode* of the bot (e.g. when bot is running and answering questions from many users). This is the reason why you will create a *database* with pre-computed representations. These representations will be arranged by non-overlaping tags (programming languages), so that the search of the answer can be performed only within one tag each time. This will make our bot even more efficient and allow not to store all the database in RAM. 
-
-# Load StarSpace embeddings which were trained on Stack Overflow posts. These embeddings were trained in *supervised mode* for duplicates detection on the same corpus that is used in search. We can account on that these representations will allow us to find closely related answers for a question. 
-# 
-# If for some reasons you didn't train StarSpace embeddings in the assignment 3, you can use [pre-trained word vectors](https://code.google.com/archive/p/word2vec/) from Google. All instructions about how to work with these vectors were provided in the same assignment. However, we highly recommend to use StartSpace's embeddings, because it contains more appropriate embeddings. If you chose to use Google's embeddings, delete the words, which is not in Stackoverflow data.
-
-
 starspace_embeddings, embeddings_dim = load_embeddings('data/starspace_emb.tsv')
-
-
 # Since we want to precompute representations for all possible answers, we need to load the whole posts dataset, unlike we did for the intent classifier:
 
 posts_df = pd.read_csv('data/tagged_posts.tsv', sep='\t')
-
-
 # Look at the distribution of posts for programming languages (tags) and find the most common ones. 
-
-
-
 counts_by_tag = posts_df.groupby(['tag'], as_index=False).agg({'title':['count']})
 counts_by_tag.columns=['tag','count']
 counts_by_tag.set_index('tag',inplace=True)
-
-
 # Now for each `tag` you need to create two data structures, which will serve as online search index:
 # * `tag_post_ids` — a list of post_ids with shape `(counts_by_tag[tag],)`. It will be needed to show the title and link to the thread;
 # * `tag_vectors` — a matrix with shape `(counts_by_tag[tag], embeddings_dim)` where embeddings for each answer are stored.
 # 
 # Implement the code which will calculate the mentioned structures and dump it to files. It should take several minutes to compute it.
-
-
 import os
 os.makedirs(RESOURCE_PATH['THREAD_EMBEDDINGS_FOLDER'], exist_ok=True)
-
 for tag, count in counts_by_tag.itertuples():
     tag_posts = posts_df[posts_df['tag'] == tag]
     tag_post_ids = tag_posts.post_id.values
     tag_vectors = np.zeros((count, embeddings_dim), dtype=np.float32)
     for i, title in enumerate(tag_posts['title']):
-       
         tag_vectors[i, :] =question_to_vec(text_prepare(title), starspace_embeddings,embeddings_dim) ######### YOUR CODE HERE #############
-
     # Dump post ids and vectors to a file.
     filename = os.path.join(RESOURCE_PATH['THREAD_EMBEDDINGS_FOLDER'], os.path.normpath('%s.pkl' % tag))
     pickle.dump((tag_post_ids, tag_vectors), open(filename, 'wb'))
